@@ -1,127 +1,132 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Shield, Send, ArrowLeft } from "lucide-react";
+import { Shield, Plus, ArrowLeft, PieChart as PieIcon, FileText, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
-import { classifyUrgency } from "@/lib/nlp";
-import { addComplaint, getComplaintsWithBreach, computeSlaRemaining } from "@/lib/complaints";
-import { Department, Complaint } from "@/lib/types";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { getComplaintsWithBreach, computeSlaRemaining } from "@/lib/complaints";
+import { Complaint } from "@/lib/types";
 
 function urgencyColor(u: string) {
-  if (u === "HIGH") return "bg-urgency-high text-white";
-  if (u === "MEDIUM") return "bg-urgency-medium text-white";
-  return "bg-urgency-low text-white";
+  if (u === "HIGH") return "bg-urgency-high text-primary-foreground";
+  if (u === "MEDIUM") return "bg-urgency-medium text-primary-foreground";
+  return "bg-urgency-low text-primary-foreground";
 }
 
-const Citizen = () => {
-  const { toast } = useToast();
-  const [text, setText] = useState("");
-  const [department, setDepartment] = useState<Department | "">("");
-  const [location, setLocation] = useState("");
-  const [complaints, setComplaints] = useState<Complaint[]>(() => getComplaintsWithBreach());
+const PIE_COLORS = ["hsl(0,72%,56%)", "hsl(32,95%,52%)", "hsl(142,71%,50%)"];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text || !department || !location) {
-      toast({ title: "Missing fields", description: "Please fill in all fields.", variant: "destructive" });
-      return;
-    }
-    const { urgency, slaDays } = classifyUrgency(text);
-    const complaint: Complaint = {
-      id: `c${Date.now()}`,
-      text,
-      department: department as Department,
-      location,
-      urgency,
-      slaDays,
-      submittedAt: new Date().toISOString(),
-      status: "Pending",
-      escalated: false,
-    };
-    addComplaint(complaint);
-    setComplaints(getComplaintsWithBreach());
-    setText("");
-    setDepartment("");
-    setLocation("");
-    toast({ title: "Complaint Submitted", description: `Urgency: ${urgency} — SLA: ${slaDays} days` });
-  };
+const Citizen = () => {
+  const [complaints] = useState<Complaint[]>(() => getComplaintsWithBreach());
+
+  const stats = useMemo(() => {
+    const total = complaints.length;
+    const pending = complaints.filter((c) => c.status === "Pending").length;
+    const resolved = complaints.filter((c) => c.status === "Resolved").length;
+    const breached = complaints.filter((c) => computeSlaRemaining(c) < 0 && c.status !== "Resolved").length;
+    return { total, pending, resolved, breached };
+  }, [complaints]);
+
+  const urgencyData = useMemo(() => {
+    const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+    complaints.forEach((c) => counts[c.urgency]++);
+    return [
+      { name: "High", value: counts.HIGH },
+      { name: "Medium", value: counts.MEDIUM },
+      { name: "Low", value: counts.LOW },
+    ];
+  }, [complaints]);
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
       <nav className="border-b border-border/50">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold">CivicGuard AI</span>
           </Link>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="gap-2">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" asChild className="gap-2">
+              <Link to="/submit">
+                <Plus className="h-4 w-4" /> New Complaint
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/" className="gap-2">
+                <ArrowLeft className="h-4 w-4" /> Home
+              </Link>
+            </Button>
+          </div>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <h1 className="mb-8 text-3xl font-bold">Citizen Portal</h1>
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        <h1 className="mb-8 text-3xl font-bold">Citizen Dashboard</h1>
 
-        <div className="grid gap-8 lg:grid-cols-[400px_1fr]">
-          {/* Form */}
-          <Card className="border-border/50 bg-card/80 h-fit">
-            <CardHeader>
-              <CardTitle className="text-xl">Submit a Complaint</CardTitle>
-            </CardHeader>
+        {/* KPI Row */}
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-lg bg-primary/10 p-3"><FileText className="h-5 w-5 text-primary" /></div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Filed</p>
+                <p className="text-3xl font-bold">{stats.total}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-lg bg-urgency-medium/10 p-3"><Clock className="h-5 w-5 text-urgency-medium" /></div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-3xl font-bold">{stats.pending}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-lg bg-urgency-low/10 p-3"><PieIcon className="h-5 w-5 text-urgency-low" /></div>
+              <div>
+                <p className="text-sm text-muted-foreground">Resolved</p>
+                <p className="text-3xl font-bold">{stats.resolved}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/80">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-lg bg-destructive/10 p-3"><AlertTriangle className="h-5 w-5 text-destructive" /></div>
+              <div>
+                <p className="text-sm text-muted-foreground">SLA Breached</p>
+                <p className="text-3xl font-bold">{stats.breached}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[300px_1fr]">
+          {/* Urgency Pie */}
+          <Card className="border-border/50 bg-card/80">
+            <CardHeader><CardTitle className="text-lg">Urgency Breakdown</CardTitle></CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Complaint Description</Label>
-                  <Textarea
-                    placeholder="Describe the issue in detail..."
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    className="min-h-[120px] bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select value={department} onValueChange={(v) => setDepartment(v as Department)}>
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Roads">Roads</SelectItem>
-                      <SelectItem value="Drainage">Drainage</SelectItem>
-                      <SelectItem value="Electricity">Electricity</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Location</Label>
-                  <Input
-                    placeholder="e.g., MG Road, Sector 12"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <Button type="submit" className="w-full gap-2">
-                  <Send className="h-4 w-4" /> Submit Complaint
-                </Button>
-              </form>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={urgencyData} cx="50%" cy="50%" outerRadius={85} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                    {urgencyData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(222,47%,9%)", border: "1px solid hsl(217,33%,17%)", borderRadius: "8px" }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Table */}
+          {/* Complaints Table */}
           <Card className="border-border/50 bg-card/80">
             <CardHeader>
-              <CardTitle className="text-xl">My Complaints</CardTitle>
+              <CardTitle className="text-lg">My Complaints</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-auto">

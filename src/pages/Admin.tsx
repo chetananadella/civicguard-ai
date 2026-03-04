@@ -62,11 +62,18 @@ const Admin = () => {
             <Shield className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold">CivicGuard AI</span>
           </Link>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="gap-2">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/monitoring" className="gap-2">
+                Monitoring
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/" className="gap-2">
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Link>
+            </Button>
+          </div>
         </div>
       </nav>
 
